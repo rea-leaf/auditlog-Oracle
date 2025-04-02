@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.htffund.auditlog.interceptor.CamelCaseUtils;
 import org.apache.commons.lang.StringUtils;
 
 public class MapUtil {
@@ -70,13 +71,13 @@ public class MapUtil {
 	   
 	   //去除下划线后进行匹配
 	   for(String column:toColumnList){
-		   relationMap.put(column.replaceAll(UNDERLINE, "").toLowerCase(),column);
+		   relationMap.put(CamelCaseUtils.toCamelCase(column),column);
 	   }
 	   
 	   String tmpKey="";
 	   String resultKey="";
 	   for (String key : dbValueMap.keySet()) {
-		   tmpKey=key.replaceAll(UNDERLINE, "").toLowerCase();
+		   tmpKey=key;//key.replaceAll(UNDERLINE, "").toLowerCase();
 		   resultKey=relationMap.get(tmpKey);
 			if(StringUtils.isNotEmpty(resultKey)){
 				resultMap.put(resultKey, dbValueMap.get(key));

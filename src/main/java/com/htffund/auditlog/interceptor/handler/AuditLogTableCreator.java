@@ -32,7 +32,7 @@ public class AuditLogTableCreator
             "Operation varchar(50) DEFAULT NULL," +
             "CreateTime datetime DEFAULT NULL," +
             "CreateClerk int(11) DEFAULT NULL," +
-            "PRIMARY KEY (ID)) ENGINE=InnoDB;";
+            "PRIMARY KEY (ID))";
 
     private String defaultTableName;
 
@@ -79,7 +79,7 @@ public class AuditLogTableCreator
         {
             String tableNameByNowDate = getCurrentTableName();
             Statement statement = connection.createStatement();
-            statement.execute(String.format(sqlTemplate, tableNameByNowDate));
+            statement.execute(String.format(oracleSqlTemplate, tableNameByNowDate));
             statement.close();
             currentValidTableName = tableNameByNowDate;
             return tableNameByNowDate;

@@ -8,12 +8,14 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 
 import com.alibaba.druid.sql.ast.SQLStatement;
 import com.alibaba.druid.sql.parser.SQLStatementParser;
 import com.htffund.auditlog.domain.AuditLog;
+import com.htffund.auditlog.interceptor.TimestampUtils;
 
 abstract class AbstractSQLAuditHandler extends AbstractSQLHandler
 {
@@ -110,8 +112,16 @@ abstract class AbstractSQLAuditHandler extends AbstractSQLHandler
             preparedStatement.setObject(i++, auditLog.getColumnName());
             preparedStatement.setObject(i++, auditLog.getPrimaryKey());
             preparedStatement.setObject(i++, parentID);
-            preparedStatement.setObject(i++, auditLog.getNewValue());
-            preparedStatement.setObject(i++, auditLog.getOldValue());
+            if(auditLog.getNewValue() instanceof Timestamp){
+                preparedStatement.setObject(i++, TimestampUtils.timestampToString((Timestamp)auditLog.getNewValue()));
+            }else{
+                preparedStatement.setObject(i++, auditLog.getNewValue());
+            }
+            if(auditLog.getOldValue() instanceof Timestamp){
+                preparedStatement.setObject(i++, TimestampUtils.timestampToString((Timestamp)auditLog.getOldValue()));
+            }else{
+                preparedStatement.setObject(i++, auditLog.getOldValue());
+            }
             preparedStatement.setObject(i++, auditLog.getOperation());
             //preparedStatement.setObject(i++, insertTime);
             preparedStatement.setObject(i, noClerkId);
@@ -176,11 +186,13 @@ abstract class AbstractSQLAuditHandler extends AbstractSQLHandler
     }
     
     private void judgeIsSkip(){
-        for(String excludeTable:excludeTables){
-        	if(excludeTable.equalsIgnoreCase(getCurrentDataTable())){
-        		isSkipTable=Boolean.TRUE;
-        		break;
-        	}
+        if(excludeTables!=null&&excludeTables.length>0){
+            for(String excludeTable:excludeTables){
+                if(excludeTable.equalsIgnoreCase(getCurrentDataTable())){
+                    isSkipTable=Boolean.TRUE;
+                    break;
+                }
+            }
         }
     }
 

@@ -5,10 +5,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.commons.collections.map.CaseInsensitiveMap;
 import org.apache.commons.lang.StringUtils;
@@ -180,7 +177,7 @@ public class OracleUpdateSqlAuditHandler extends AbstractSQLAuditHandler
             List<SQLExpr> sqlExprList = new ArrayList<>();
             for (Object primaryKey : tableDataEntry.getValue().keySet())
             {
-                sqlExprList.add(SQLUtils.toSQLExpr(primaryKey.toString()));
+                sqlExprList.add(SQLUtils.toSQLExpr("'"+primaryKey.toString()+"'"));
             }
             sqlInListExpr.setExpr(new SQLIdentifierExpr(getDbMetaDataHolder().getPrimaryKeys().get(tableName)));
             sqlInListExpr.setTargetList(sqlExprList);
@@ -196,7 +193,7 @@ public class OracleUpdateSqlAuditHandler extends AbstractSQLAuditHandler
     @SuppressWarnings("unchecked")
     private Map<String, Map<Object, Object[]>> getTablesData(String querySQL, Map<String, List<String>> tableColumnsMap)
     {
-        Map<String, Map<Object, Object[]>> resultListMap = new CaseInsensitiveMap();
+        Map<String, Map<Object, Object[]>> resultListMap = new HashMap<>();
         PreparedStatement statement = null;
         try
         {
@@ -206,7 +203,7 @@ public class OracleUpdateSqlAuditHandler extends AbstractSQLAuditHandler
           
             while (resultSet.next())
             {
-                Map<String, Object> currRowTablePKeyMap = new CaseInsensitiveMap();
+                Map<String, Object> currRowTablePKeyMap = new HashMap();
                 for (int i = 1; i < columnCount + 1; i++)
                 {
                 	String tableName=resultSet.getMetaData().getTableName(i);
@@ -220,7 +217,7 @@ public class OracleUpdateSqlAuditHandler extends AbstractSQLAuditHandler
                         } 
                         else{
                             Map<Object, Object[]> rowsMap = resultListMap.get(currentTableName);
-                            if (rowsMap == null)rowsMap = new CaseInsensitiveMap();
+                            if (rowsMap == null)rowsMap = new HashMap();
                             Object[] rowData = rowsMap.get(currRowTablePKeyMap.get(currentTableName));
                             if (rowData == null)rowData = new Object[]{};
                             if (rowData.length < tableColumnsMap.get(currentTableName).size())

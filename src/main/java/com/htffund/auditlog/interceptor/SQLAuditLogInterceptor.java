@@ -10,6 +10,8 @@ import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.ibatis.executor.Executor;
@@ -41,6 +43,7 @@ import com.htffund.auditlog.interceptor.handler.OracleUpdateSqlAuditHandler;
         })
 public class SQLAuditLogInterceptor implements Interceptor
 {
+    private static final Logger log = LoggerFactory.getLogger(SQLAuditLogInterceptor.class);
 
     private static final Pattern pattern1 = Pattern.compile("\\?(?=\\s*[^']*\\s*,?\\s*(\\w|$))");
     private static final Pattern pattern2 = Pattern.compile("[\\s]+");
@@ -106,7 +109,7 @@ public class SQLAuditLogInterceptor implements Interceptor
                     }
                 } catch (Throwable ex)
                 {
-                    ex.printStackTrace();
+                    log.error("异常" ,ex);
                 }
                 
                 //insert 发现这里有返回创建的值，所以可以传值进去后处理
@@ -124,7 +127,7 @@ public class SQLAuditLogInterceptor implements Interceptor
                     }
                 } catch (Throwable ex)
                 {
-                    ex.printStackTrace();
+                    log.error("异常" ,ex);
                 }
                 return result;
             }
