@@ -109,7 +109,7 @@ public class SQLAuditLogInterceptor implements Interceptor
                     }
                 } catch (Throwable ex)
                 {
-                    log.error("异常" ,ex);
+                    log.error("记录修改日志异常" ,ex);
                 }
                 
                 //insert 发现这里有返回创建的值，所以可以传值进去后处理
@@ -127,7 +127,7 @@ public class SQLAuditLogInterceptor implements Interceptor
                     }
                 } catch (Throwable ex)
                 {
-                    log.error("异常" ,ex);
+                    log.error("记录修改日志异常" ,ex);
                 }
                 return result;
             }

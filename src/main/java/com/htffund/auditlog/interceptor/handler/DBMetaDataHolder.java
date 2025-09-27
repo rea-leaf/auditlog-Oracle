@@ -38,7 +38,7 @@ public class DBMetaDataHolder
                     {
                         try
                         {
-                            ResultSet resultSet = connection.getMetaData().getTables(null,
+                            ResultSet resultSet = connection.getMetaData().getTables(connection.getCatalog(),
                                     connection.getMetaData().getUserName(), "%", new String[]{"TABLE"});
                             while (resultSet.next())
                             {
@@ -102,7 +102,7 @@ public class DBMetaDataHolder
             try
             {
                 columns = new ArrayList<>();
-                ResultSet resultSet = connection.getMetaData().getColumns(null, connection.getMetaData().getUserName(), table, "%");
+                ResultSet resultSet = connection.getMetaData().getColumns(connection.getCatalog(), connection.getMetaData().getUserName(), table, "%");
                 while (resultSet.next())
                 {
                     String columnName = resultSet.getString("COLUMN_NAME");
