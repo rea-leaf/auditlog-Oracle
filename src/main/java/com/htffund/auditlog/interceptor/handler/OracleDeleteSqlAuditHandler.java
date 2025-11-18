@@ -27,6 +27,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class OracleDeleteSqlAuditHandler extends AbstractSQLAuditHandler
 {
@@ -37,9 +38,9 @@ public class OracleDeleteSqlAuditHandler extends AbstractSQLAuditHandler
 
     private Boolean preHandled = Boolean.FALSE;
 
-    public OracleDeleteSqlAuditHandler(Connection connection, DBMetaDataHolder dbMetaDataHolder, Method clerkIdMethod, String sql,String[] excludeTables)
+    public OracleDeleteSqlAuditHandler(Connection connection, DBMetaDataHolder dbMetaDataHolder, String sql, String monitorTableRegex, String tableColumnPreFix, String nonMonitorTableRegex, CopyOnWriteArrayList<String> monitorTables, CopyOnWriteArrayList<String> nonMonitorTables)
     {
-        super(connection, dbMetaDataHolder, clerkIdMethod, sql,excludeTables);
+        super(connection, dbMetaDataHolder, sql, monitorTableRegex, tableColumnPreFix, nonMonitorTableRegex, monitorTables, nonMonitorTables);
     }
 
     @Override
@@ -159,8 +160,18 @@ public class OracleDeleteSqlAuditHandler extends AbstractSQLAuditHandler
                    			    continue;
                    		    }
                             List<AuditLog> cols = list.get(row);
-                            cols.add(new AuditLog(tableName, getDbMetaDataHolder().getTableColumns().get(tableName).get(i - 2), null,
-                                    primaryKeyMap.get(tableName), AuditLog.OperationEnum.delete.name(), resultSet.getObject(i), null));
+                            String tableUpper = tableName.toUpperCase();
+                            AuditLog auditLog = new AuditLog(tableUpper, getDbMetaDataHolder().getTableColumns().get(tableName).get(i - 2), null,
+                                    primaryKeyMap.get(tableName), AuditLog.OperationEnum.delete.name(), resultSet.getObject(i), null);
+                            Map<String, String> tableCommentsByTableName = getTableCommentsByTableName(tableUpper);
+                            if (tableCommentsByTableName != null) {
+                                auditLog.setTableComments(tableCommentsByTableName.get(tableUpper));
+                            }
+                            Map<String, String> colComments = getColCommentsByTableNameWithCache(tableUpper);
+                            if (colComments != null) {
+                                auditLog.setColComments(colComments.get(auditLog.getColumnName()));
+                            }
+                            cols.add(auditLog);
                         }
                         resultListMap.put(tableName, list);
                     }

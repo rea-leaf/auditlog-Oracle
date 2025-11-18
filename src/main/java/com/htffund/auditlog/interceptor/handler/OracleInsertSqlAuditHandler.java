@@ -5,6 +5,7 @@ import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import com.alibaba.druid.sql.SQLUtils;
 import com.alibaba.druid.sql.ast.SQLExpr;
@@ -23,9 +24,9 @@ public class OracleInsertSqlAuditHandler extends AbstractSQLAuditHandler
     private List<String> columnList = new ArrayList<>();
     private Boolean preHandled = Boolean.FALSE;
 
-    public OracleInsertSqlAuditHandler(Connection connection, DBMetaDataHolder dbMetaDataHolder, Method clerkIdMethod, String insertSQL,String[] excludeTables)
+    public OracleInsertSqlAuditHandler(Connection connection, DBMetaDataHolder dbMetaDataHolder, String insertSQL, String monitorTableRegex, String tableColumnPreFix, String nonMonitorTableRegex, CopyOnWriteArrayList<String> monitorTables, CopyOnWriteArrayList<String> nonMonitorTables)
     {
-        super(connection, dbMetaDataHolder, clerkIdMethod, insertSQL,excludeTables);
+        super(connection, dbMetaDataHolder, insertSQL, monitorTableRegex, tableColumnPreFix, nonMonitorTableRegex, monitorTables, nonMonitorTables);
     }
 
     @Override
@@ -86,14 +87,23 @@ public class OracleInsertSqlAuditHandler extends AbstractSQLAuditHandler
             	//要求每个表都要有主键
             	 String PrimaryKey=getDbMetaDataHolder().getPrimaryKeys().get(table);
             	 Map currentValueMap=MapUtil.convertDbColumnList(args,columnList,PrimaryKey);
-            	 Object primaryValue = currentValueMap.get(PrimaryKey.toLowerCase()) ; 
+            	 Object primaryValue = currentValueMap.get(PrimaryKey) ;
             	 List<AuditLog> list = new ArrayList<>();
             	 for (String column : columnList)
                  {
             		 if(null==currentValueMap.get(column)){
             			 continue;
             		 }
-            		 AuditLog auditLog = new AuditLog(table, column, null, primaryValue, AuditLog.OperationEnum.insert.name(), null, currentValueMap.get(column));
+                     String tableName = table.toUpperCase();
+            		 AuditLog auditLog = new AuditLog(tableName, column, null, primaryValue, AuditLog.OperationEnum.insert.name(), null, currentValueMap.get(column));
+                     Map<String, String> tableCommentsByTableName = getTableCommentsByTableName(tableName);
+                     if (tableCommentsByTableName != null) {
+                         auditLog.setTableComments(tableCommentsByTableName.get(tableName));
+                     }
+                     Map<String, String> colComments = getColCommentsByTableNameWithCache(tableName);
+                     if (colComments != null) {
+                         auditLog.setColComments(colComments.get(auditLog.getColumnName()));
+                     }
                      list.add(auditLog);
                  }
             	 auditLogs.add(list);

@@ -9,7 +9,9 @@ public class AuditLog
     }
 
     private String tableName;
+    private String tableComments;
     private String columnName;
+    private String colComments;
     private Long parentId;
     private Object primaryKey;
     private String operation;
@@ -95,5 +97,21 @@ public class AuditLog
     public void setNewValue(Object newValue)
     {
         this.newValue = newValue;
+    }
+
+    public String getTableComments() {
+        return tableComments;
+    }
+
+    public void setTableComments(String tableComments) {
+        this.tableComments = tableComments;
+    }
+
+    public String getColComments() {
+        return colComments;
+    }
+
+    public void setColComments(String colComments) {
+        this.colComments = colComments;
     }
 }

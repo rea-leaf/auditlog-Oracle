@@ -1,38 +1,46 @@
-create table AUDIT_LOG
+CREATE TABLE TB_AUDIT_LOG
 (
-    id          NUMBER not null,
-    tablename   VARCHAR2(128) not null,
-    columnname  VARCHAR2(128),
-    primarykey  VARCHAR2(24),
-    parentid    NUMBER,
-    newvalue    VARCHAR2(4000),
-    oldvalue    VARCHAR2(4000),
-    operation   VARCHAR2(50),
-    createtime  DATE,
-    createclerk VARCHAR2(24),
-    PRIMARY KEY (ID)
+    tc_audit_log_id          NUMBER not null,
+    tc_batch_id              CHAR(24) NOT NULL,
+    tc_table_name            VARCHAR2(128) NOT NULL,
+    tc_table_description     NVARCHAR2(256) NOT NULL,
+    tc_column_name           VARCHAR2(128),
+    tc_column_description    NVARCHAR2(256),
+    tc_primary_key_value     VARCHAR2(64),
+    tc_parent_id             CHAR(24),
+    tc_new_value             VARCHAR2(4000),
+    tc_old_value             VARCHAR2(4000),
+    tc_operation_type        VARCHAR2(32),
+    tc_create_time           DATE,
+    tc_create_by             CHAR(24),
+    tc_create_name           VARCHAR2(64),
+    tc_memo                  NVARCHAR2(128),
+    tc_ip_address            VARCHAR2(64),
+    tc_session_id            VARCHAR2(128),
+    CONSTRAINT PK_TB_AUDIT_LOG PRIMARY KEY (tc_audit_log_id)
 );
--- Add comments to the columns
-comment on column AUDIT_LOG.id
-  is '本记录ID使用了SEQ_AUDIT_LOG';
-comment on column AUDIT_LOG.tablename
-  is '记录的表名';
-comment on column AUDIT_LOG.columnname
-  is '记录的列名';
-comment on column AUDIT_LOG.primarykey
-  is '记录的主键';
-comment on column AUDIT_LOG.parentid
-  is '父记录ID（例如：insert、delete、update语句 从第二个字段开始 会以第一个字段在本表的ID作为ParentID，以便于SQL分组）';
-comment on column AUDIT_LOG.newvalue
-  is '该字段的新值';
-comment on column AUDIT_LOG.oldvalue
-  is '该字段的旧值';
-comment on column AUDIT_LOG.operation
-  is '记录下的动作（目前有：update、insert、delete）';
-comment on column AUDIT_LOG.createtime
-  is '记录的创建时间';
-comment on column AUDIT_LOG.createclerk
-  is '操作人员ID';
+
+-- 表注释
+COMMENT ON TABLE TB_AUDIT_LOG IS '审计日志表';
+
+-- 列注释
+COMMENT ON COLUMN TB_AUDIT_LOG.tc_audit_log_id IS '审计日志主键ID';
+COMMENT ON COLUMN TB_AUDIT_LOG.tc_batch_id IS '操作批次ID：标识同一次操作的所有记录';
+COMMENT ON COLUMN TB_AUDIT_LOG.tc_table_name IS '表名称';
+COMMENT ON COLUMN TB_AUDIT_LOG.tc_table_description IS '表描述';
+COMMENT ON COLUMN TB_AUDIT_LOG.tc_column_name IS '字段名称';
+COMMENT ON COLUMN TB_AUDIT_LOG.tc_column_description IS '字段描述';
+COMMENT ON COLUMN TB_AUDIT_LOG.tc_primary_key_value IS '主键值';
+COMMENT ON COLUMN TB_AUDIT_LOG.tc_parent_id IS '父记录ID';
+COMMENT ON COLUMN TB_AUDIT_LOG.tc_new_value IS '新值';
+COMMENT ON COLUMN TB_AUDIT_LOG.tc_old_value IS '旧值';
+COMMENT ON COLUMN TB_AUDIT_LOG.tc_operation_type IS '操作类型';
+COMMENT ON COLUMN TB_AUDIT_LOG.tc_create_time IS '创建时间';
+COMMENT ON COLUMN TB_AUDIT_LOG.tc_create_by IS '创建人ID';
+COMMENT ON COLUMN TB_AUDIT_LOG.tc_create_name IS '创建人姓名';
+COMMENT ON COLUMN TB_AUDIT_LOG.tc_memo IS '备注';
+COMMENT ON COLUMN TB_AUDIT_LOG.tc_ip_address IS 'IP地址';
+COMMENT ON COLUMN TB_AUDIT_LOG.tc_session_id IS '会话ID';
 create sequence SEQ_AUDIT_LOG
     minvalue 1
     maxvalue 9999999999999999999999999999

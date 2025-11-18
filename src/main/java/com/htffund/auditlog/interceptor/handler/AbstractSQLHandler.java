@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,7 +33,6 @@ public abstract class AbstractSQLHandler implements ISQLHandler
     private static Pattern pattern2 = Pattern.compile("`\\.`");
     private static Pattern pattern3 = Pattern.compile("[\\s]+");
     private String currentDataTable;//delete update  insert不应该就一张表吗?
-    
 	protected abstract SQLTableSource getMajorTableSource(SQLStatement statement);
 
     protected abstract SQLStatement parseSQLStatement(SQLStatementParser statementParser);
