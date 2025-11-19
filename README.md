@@ -61,3 +61,46 @@ mybatis-config.xml加入
 1、mysql版本已经做好了，待合并成mysql、oracle兼容版本
 2、目前没有做分表的打算，后续可以加上这个功能
 3、update触发后的数据可以不用查数据库了，直接获取到修改的对象，待后面完善
+
+```
+
+
+
+接入说明
+
+```java
+    @Bean(name = "platformWriteSqlSessionFactory")
+    @Primary
+    public SqlSessionFactory platformWriteSqlSessionFactory(@Qualifier("platformWriteDataSource") DataSource dataSource,DatabaseIdProvider databaseIdProvider) throws Exception {
+        SqlSessionFactoryBean factory = new SqlSessionFactoryBean();
+        factory.setDataSource(dataSource);
+        factory.setDatabaseIdProvider(platformWriteDatabaseIdProvider());
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        factory.setConfigLocation(new ClassPathResource("mybatis-config.xml"));
+        factory.setTypeAliasesPackage("com.mozi.corex");
+        factory.setMapperLocations(resolver.getResources("classpath*:com/mozi/corex/**/dao/write/**/*.xml"));
+        SQLAuditLogInterceptor sqlAuditLogInterceptor = new SQLAuditLogInterceptor();
+        Properties properties=new Properties();
+        properties.setProperty("enable", "true");
+        properties.setProperty("defaultTableName", "TB_AUDIT_LOG");
+        //表字段前置 例如TC_
+        properties.setProperty("columnPreFix", "TC_");
+        //不需要监控的表前缀
+        properties.setProperty("nonMonitorTableRegex", "");
+        //不需要监控的表
+        properties.setProperty("nonMonitorTables", "");
+        //需要监控的表正则
+        properties.setProperty("monitorTableRegex", "^TB_DIC.*");
+        //需要监控的表
+        properties.setProperty("monitorTables", "");
+
+        sqlAuditLogInterceptor.setProperties(properties);
+        factory.setPlugins( new Interceptor[]{
+                new MyBatisExtPlugin(databaseIdProvider.getDatabaseId(dataSource)),
+                sqlAuditLogInterceptor
+        });
+        factory.setVfs(SpringBootVFS.class);
+        return factory.getObject();
+    }
+```
+

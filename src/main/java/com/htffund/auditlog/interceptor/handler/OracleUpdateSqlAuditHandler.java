@@ -120,8 +120,8 @@ public class OracleUpdateSqlAuditHandler extends AbstractSQLAuditHandler {
                             Object[] rowAfterUpdate = rowsAfterUpdateRowsMap.get(pKey);
                             List<AuditLog> colList = new ArrayList<>();
                             for (int col = 0; col < rowBeforeUpdate.length; col++) {
-                                if (rowBeforeUpdate[col] != null && !rowBeforeUpdate[col].equals(rowAfterUpdate[col])
-                                        || rowBeforeUpdate[col] == null && rowAfterUpdate[col] != null) {
+                                if (rowBeforeUpdate[col] != null
+                                        || (rowBeforeUpdate[col] == null && rowAfterUpdate[col] != null)) {
                                     String tableUpper = tableName.toUpperCase();
                                     AuditLog auditLog = new AuditLog(tableUpper, updateColumnListMap.get(tableName).get(col), null,
                                             pKey, AuditLog.OperationEnum.update.name(), rowBeforeUpdate[col], rowAfterUpdate[col]);
