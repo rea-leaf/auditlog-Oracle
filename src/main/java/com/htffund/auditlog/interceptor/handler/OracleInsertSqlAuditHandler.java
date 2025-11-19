@@ -1,6 +1,8 @@
 package com.htffund.auditlog.interceptor.handler;
 
-import java.lang.reflect.Method;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,15 +20,35 @@ import com.htffund.auditlog.domain.AuditLog;
 
 
 public class OracleInsertSqlAuditHandler extends AbstractSQLAuditHandler {
+    
+    private static final Logger logger = LoggerFactory.getLogger(OracleInsertSqlAuditHandler.class);
 
+    private final List<String> columnList = new ArrayList<>();
     private String table;
-    private List<String> columnList = new ArrayList<>();
-    private Boolean preHandled = Boolean.FALSE;
+    private boolean preHandled = false;
 
+    /**
+     * Constructor for OracleInsertSqlAuditHandler.
+     *
+     * @param connection             the database connection
+     * @param dbMetaDataHolder       the database metadata holder
+     * @param insertSQL              the INSERT SQL statement
+     * @param monitorTableRegex      the regex pattern for monitoring tables
+     * @param tableColumnPreFix      the prefix for table columns
+     * @param nonMonitorTableRegex   the regex pattern for non-monitoring tables
+     * @param monitorTables          the list of tables to monitor
+     * @param nonMonitorTables       the list of tables not to monitor
+     */
     public OracleInsertSqlAuditHandler(Connection connection, DBMetaDataHolder dbMetaDataHolder, String insertSQL, String monitorTableRegex, String tableColumnPreFix, String nonMonitorTableRegex, CopyOnWriteArrayList<String> monitorTables, CopyOnWriteArrayList<String> nonMonitorTables) {
         super(connection, dbMetaDataHolder, insertSQL, monitorTableRegex, tableColumnPreFix, nonMonitorTableRegex, monitorTables, nonMonitorTables);
     }
 
+    /**
+     * Get the major table source from the SQL statement.
+     *
+     * @param statement the SQL statement
+     * @return the table source if it's an Oracle INSERT statement, otherwise null
+     */
     @Override
     protected SQLTableSource getMajorTableSource(SQLStatement statement) {
         if (statement instanceof OracleInsertStatement)
@@ -35,6 +57,9 @@ public class OracleInsertSqlAuditHandler extends AbstractSQLAuditHandler {
             return null;
     }
 
+    /**
+     * Pre-handle the INSERT SQL statement to extract table and column information.
+     */
     @Override
     public void preHandle() {
         if (getSqlStatement() instanceof OracleInsertStatement) {
@@ -50,22 +75,26 @@ public class OracleInsertSqlAuditHandler extends AbstractSQLAuditHandler {
                     table = determineTableForColumn(aliasAndColumn[1]);
                 }
                 if (StringUtils.isEmpty(table)) {
-                    System.err.println("Error data at table:null at preHandle:skip!!!!!");
+                    logger.error("Error data at table:null at preHandle:skip!!!!!");
                     return;
                 }
-                for (int i = 0; i < sqlInsertStatement.getColumns().size(); i++) {
-                    SQLExpr columnExpr = sqlInsertStatement.getColumns().get(i);
+                for (SQLExpr columnExpr : sqlInsertStatement.getColumns()) {
                     columnList.add(separateAliasAndColumn(SQLUtils.toOracleString(columnExpr))[1]);
                 }
             }
-            preHandled = Boolean.TRUE;
+            preHandled = true;
         }
     }
 
+    /**
+     * Post-handle the INSERT operation to generate audit logs.
+     *
+     * @param args the parameters of the INSERT operation
+     */
     @Override
     public void postHandle(Object args) {
         if (StringUtils.isEmpty(table)) {
-            System.err.println("Error data at table:null at postHandle:skip!!!!!");
+            logger.error("Error data at table:null at postHandle:skip!!!!!");
             return;
         }
         if (preHandled) {
@@ -83,44 +112,55 @@ public class OracleInsertSqlAuditHandler extends AbstractSQLAuditHandler {
                         {
                             List<?> parameterList = (List<?>) paramMap.get("list");
                             for (Object parameter : parameterList) {
-                                extracted(parameter,primaryKey, auditLogs);
+                                processInsertParameter(parameter,primaryKey, auditLogs);
                             }
-
                         }
                     }
                     // 可根据实际情况检查其他
                 }else if (paramToProcess instanceof List) {
                     List<?> parameterList = (List<?>) paramToProcess;
                     for (Object parameter : parameterList) {
-                        extracted(parameter,primaryKey, auditLogs);
+                        processInsertParameter(parameter,primaryKey, auditLogs);
                     }
                 }else{
-                    extracted(args, primaryKey,auditLogs);
+                    processInsertParameter(args, primaryKey,auditLogs);
                 }
 
             } catch (Exception e) {
-                e.printStackTrace();
+                logger.error("Error processing insert audit log", e);
             }
             saveAuditLog(auditLogs);
         }
     }
 
-    private void extracted(Object args,String primaryKey, List<List<AuditLog>> auditLogs) throws Exception {
 
-        Map currentValueMap = MapUtil.convertDbColumnList(args, columnList, primaryKey);
+    /**
+     * Process a single INSERT parameter to generate audit logs.
+     *
+     * @param args       the parameter object
+     * @param primaryKey the primary key of the table
+     * @param auditLogs  the list to store generated audit logs
+     * @throws Exception if there is an error processing the parameter
+     */
+    private void processInsertParameter(Object args, String primaryKey, List<List<AuditLog>> auditLogs) throws Exception {
+        Map<String, Object> currentValueMap = MapUtil.convertDbColumnList(args, columnList, primaryKey);
         Object primaryValue = currentValueMap.get(primaryKey);
         List<AuditLog> list = new ArrayList<>();
+        String tableName = table.toUpperCase();
+        
+        // Cache comments outside the loop for better performance
+        Map<String, String> tableCommentsByTableName = getTableCommentsByTableName(tableName);
+        Map<String, String> colComments = getColCommentsByTableNameWithCache(tableName);
+        
         for (String column : columnList) {
-            if (null == currentValueMap.get(column)) {
+            Object columnValue = currentValueMap.get(column);
+            if (null == columnValue) {
                 continue;
             }
-            String tableName = table.toUpperCase();
-            AuditLog auditLog = new AuditLog(tableName, column, null, primaryValue, AuditLog.OperationEnum.insert.name(), null, currentValueMap.get(column));
-            Map<String, String> tableCommentsByTableName = getTableCommentsByTableName(tableName);
+            AuditLog auditLog = new AuditLog(tableName, column, null, primaryValue, AuditLog.OperationEnum.insert.name(), null, columnValue);
             if (tableCommentsByTableName != null) {
                 auditLog.setTableComments(tableCommentsByTableName.get(tableName));
             }
-            Map<String, String> colComments = getColCommentsByTableNameWithCache(tableName);
             if (colComments != null) {
                 auditLog.setColComments(colComments.get(auditLog.getColumnName()));
             }
@@ -128,5 +168,4 @@ public class OracleInsertSqlAuditHandler extends AbstractSQLAuditHandler {
         }
         auditLogs.add(list);
     }
-
 }

@@ -18,6 +18,8 @@ import com.htffund.auditlog.domain.AuditLog;
 
 import org.apache.commons.collections.map.CaseInsensitiveMap;
 import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Method;
 import java.sql.Connection;
@@ -31,6 +33,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 public class OracleDeleteSqlAuditHandler extends AbstractSQLAuditHandler
 {
+    private static final Logger logger = LoggerFactory.getLogger(OracleDeleteSqlAuditHandler.class);
 
     private String querySql;
 
@@ -181,7 +184,7 @@ public class OracleDeleteSqlAuditHandler extends AbstractSQLAuditHandler
             resultSet.close();
         } catch (SQLException e)
         {
-            e.printStackTrace();
+            logger.error("Error retrieving table data", e);
         } finally
         {
             if (statement != null)
@@ -191,7 +194,7 @@ public class OracleDeleteSqlAuditHandler extends AbstractSQLAuditHandler
                     statement.close();
                 } catch (SQLException e)
                 {
-                    e.printStackTrace();
+                    logger.error("Error retrieving table data", e);
                 }
             }
         }
