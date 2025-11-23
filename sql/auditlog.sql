@@ -1,49 +1,46 @@
-CREATE TABLE TB_AUDIT_LOG
+create table TB_AUDIT_DIC_LOG
 (
-    tc_audit_log_id          NUMBER not null,
-    tc_batch_id              CHAR(24) NOT NULL,
-    tc_table_name            VARCHAR2(128) NOT NULL,
-    tc_table_description     NVARCHAR2(256) NOT NULL,
-    tc_column_name           VARCHAR2(128),
-    tc_column_description    NVARCHAR2(256),
-    tc_primary_key_value     VARCHAR2(64),
-    tc_parent_id             CHAR(24),
-    tc_new_value             VARCHAR2(4000),
-    tc_old_value             VARCHAR2(4000),
-    tc_operation_type        VARCHAR2(32),
-    tc_create_time           DATE,
-    tc_create_by             CHAR(24),
-    tc_create_name           VARCHAR2(64),
-    tc_memo                  NVARCHAR2(128),
-    tc_ip_address            VARCHAR2(64),
-    tc_session_id            VARCHAR2(128),
-    CONSTRAINT PK_TB_AUDIT_LOG PRIMARY KEY (tc_audit_log_id)
+    TC_AUDIT_LOG_ID      CHAR(24)             not null,
+    TC_IP_ADDRESS        VARCHAR2(64),
+    TC_SESSION_ID        VARCHAR2(128),
+    TC_OPERATION_TYPE    VARCHAR2(16),
+    TC_TABLE_NAME        VARCHAR2(48),
+    TC_TABLE_DESCRIPTION NVARCHAR2(48),
+    TC_PRIMARY_KEY_VALUE CHAR(24),
+    TC_PARENT_ID         CHAR(24),
+    TC_CREATE_BY         CHAR(24),
+    TC_CREATE_NAME       NVARCHAR2(16),
+    TC_CREATE_TIME       DATE,
+    constraint PK_TB_AUDIT_DIC_LOG primary key (TC_AUDIT_LOG_ID)
 );
+comment on table TB_AUDIT_DIC_LOG is '审计日志主表';
+comment on column TB_AUDIT_DIC_LOG.TC_AUDIT_LOG_ID is '审计日志主键ID';
+comment on column TB_AUDIT_DIC_LOG.TC_IP_ADDRESS is 'IP地址';
+comment on column TB_AUDIT_DIC_LOG.TC_SESSION_ID is '会话ID';
+comment on column TB_AUDIT_DIC_LOG.TC_OPERATION_TYPE is '操作类型';
+comment on column TB_AUDIT_DIC_LOG.TC_BATCH_ID is '操作批次ID：标识同一次操作的所有记录';
+comment on column TB_AUDIT_DIC_LOG.TC_TABLE_NAME is '表名称';
+comment on column TB_AUDIT_DIC_LOG.TC_TABLE_DESCRIPTION is '表描述';
+comment on column TB_AUDIT_DIC_LOG.TC_PRIMARY_KEY_VALUE is '主键值';
+comment on column TB_AUDIT_DIC_LOG.TC_CREATE_BY is '创建人ID';
+comment on column TB_AUDIT_DIC_LOG.TC_CREATE_NAME is '创建人姓名';
+comment on column TB_AUDIT_DIC_LOG.TC_CREATE_TIME is '创建时间';
 
--- 表注释
-COMMENT ON TABLE TB_AUDIT_LOG IS '审计日志表';
-
--- 列注释
-COMMENT ON COLUMN TB_AUDIT_LOG.tc_audit_log_id IS '审计日志主键ID';
-COMMENT ON COLUMN TB_AUDIT_LOG.tc_batch_id IS '操作批次ID：标识同一次操作的所有记录';
-COMMENT ON COLUMN TB_AUDIT_LOG.tc_table_name IS '表名称';
-COMMENT ON COLUMN TB_AUDIT_LOG.tc_table_description IS '表描述';
-COMMENT ON COLUMN TB_AUDIT_LOG.tc_column_name IS '字段名称';
-COMMENT ON COLUMN TB_AUDIT_LOG.tc_column_description IS '字段描述';
-COMMENT ON COLUMN TB_AUDIT_LOG.tc_primary_key_value IS '主键值';
-COMMENT ON COLUMN TB_AUDIT_LOG.tc_parent_id IS '父记录ID';
-COMMENT ON COLUMN TB_AUDIT_LOG.tc_new_value IS '新值';
-COMMENT ON COLUMN TB_AUDIT_LOG.tc_old_value IS '旧值';
-COMMENT ON COLUMN TB_AUDIT_LOG.tc_operation_type IS '操作类型';
-COMMENT ON COLUMN TB_AUDIT_LOG.tc_create_time IS '创建时间';
-COMMENT ON COLUMN TB_AUDIT_LOG.tc_create_by IS '创建人ID';
-COMMENT ON COLUMN TB_AUDIT_LOG.tc_create_name IS '创建人姓名';
-COMMENT ON COLUMN TB_AUDIT_LOG.tc_memo IS '备注';
-COMMENT ON COLUMN TB_AUDIT_LOG.tc_ip_address IS 'IP地址';
-COMMENT ON COLUMN TB_AUDIT_LOG.tc_session_id IS '会话ID';
-create sequence SEQ_AUDIT_LOG
-    minvalue 1
-    maxvalue 9999999999999999999999999999
-    start with 381
-    increment by 1
-    cache 20;
+--drop table TB_AUDIT_DIC_LOG_DTL cascade constraints;
+create table TB_AUDIT_DIC_LOG_DTL
+(
+    TC_AUDIT_LOGD_ID     CHAR(24)             not null,
+    TC_AUDIT_LOG_ID      CHAR(24),
+    TC_COLUMN_NAME       VARCHAR2(48),
+    TC_COLUMN_DESCRIPTION NVARCHAR2(48),
+    TC_NEW_VALUE         VARCHAR2(4000),
+    TC_OLD_VALUE         VARCHAR2(4000),
+    constraint PK_TB_AUDIT_DIC_LOG_DTL primary key (TC_AUDIT_LOGD_ID)
+);
+comment on table TB_AUDIT_DIC_LOG_DTL is '审计日志明细表';
+comment on column TB_AUDIT_DIC_LOG_DTL.TC_AUDIT_LOGD_ID is '审计日志明细主键ID';
+comment on column TB_AUDIT_DIC_LOG_DTL.TC_AUDIT_LOG_ID is '审计日志主键ID';
+comment on column TB_AUDIT_DIC_LOG_DTL.TC_COLUMN_NAME is '字段名称';
+comment on column TB_AUDIT_DIC_LOG_DTL.TC_COLUMN_DESCRIPTION is '字段描述';
+comment on column TB_AUDIT_DIC_LOG_DTL.TC_NEW_VALUE is '新值';
+comment on column TB_AUDIT_DIC_LOG_DTL.TC_OLD_VALUE is '旧值';

@@ -1,7 +1,8 @@
-package com.htffund.auditlog.interceptor.handler;
+package com.mozi.auditlog.interceptor.handler;
 
 import org.apache.commons.collections.map.CaseInsensitiveMap;
-import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -12,6 +13,8 @@ import java.util.Map;
 
 public class DBMetaDataHolder
 {
+    private static final Logger logger = LoggerFactory.getLogger(DBMetaDataHolder.class);
+
     @SuppressWarnings("unchecked")
     private final Map<String, String> primaryKeys = new CaseInsensitiveMap();
 
@@ -49,17 +52,13 @@ public class DBMetaDataHolder
                             initialized = Boolean.TRUE;
                         } catch (SQLException e)
                         {
-                            e.printStackTrace();
+                            logger.error("Error occurs when retrieving audit log table meta data.", e);
                         }
                     }
 
                     if (hasNoCurrentAuditLogTable())
                     {
-                        String newTableName = auditLogTableCreator.createNew(connection);
-                        if (StringUtils.isNotBlank(newTableName))
-                        {
-                            buildOneSingleTableMetaData(connection, newTableName);
-                        }
+                        throw new RuntimeException("No audit log table found.");
                     }
                 }
             }

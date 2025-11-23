@@ -1,25 +1,22 @@
-package com.htffund.auditlog.interceptor.handler;
+package com.mozi.auditlog.interceptor.handler;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import com.alibaba.druid.sql.ast.SQLStatement;
 import com.alibaba.druid.sql.parser.SQLStatementParser;
-import com.htffund.auditlog.domain.AuditLog;
-import com.htffund.auditlog.interceptor.TimestampUtils;
+import com.mozi.auditlog.domain.AuditLog;
+import com.mozi.auditlog.domain.AuditLogDtl;
+import com.mozi.auditlog.interceptor.TimestampUtils;
 
+import com.mozi.auditlog.util.UniqueIdGenerator;
+import org.apache.commons.collections.CollectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -35,16 +32,18 @@ abstract class AbstractSQLAuditHandler extends AbstractSQLHandler {
     private static final Map<String, Map<String, String>> tableCommentsCache = new ConcurrentHashMap<>();
     private static final Map<String, Map<String, String>> columnCommentsCache = new ConcurrentHashMap<>();
     /**
-     * 审计日志插入SQL模板
+     * 审计日志主表 TB_AUDIT_DIC_LOG 插入SQL模板
      */
     private static final String AUDIT_LOG_INSERT_SQL = "insert into %s " +
-            "(tc_audit_log_id,tc_table_name,tc_table_description, tc_column_name,tc_column_description, tc_primary_key_value, tc_parent_id, tc_new_value, tc_old_value, tc_operation_type, tc_create_time, tc_create_by,tc_create_name,tc_batch_id,tc_ip_address,tc_session_id) " +
-            "values(?,?, ?,?,?, ?, ?, ?, ?, ?, sysdate, ?,?,?,?,?)";
-
+            "(TC_AUDIT_LOG_ID,TC_TABLE_NAME,TC_TABLE_DESCRIPTION, TC_PRIMARY_KEY_VALUE,TC_OPERATION_TYPE, " +
+            "TC_CREATE_BY,TC_CREATE_NAME,TC_CREATE_TIME,TC_IP_ADDRESS,TC_SESSION_ID,TC_BATCH_ID) " +
+            "values(?,?,?,?,?,?,?,?,?,?,?)";
     /**
-     * 生成审计日志序列ID的SQL
+     * 审计日志明细表 TB_AUDIT_DIC_LOG_DTL 插入SQL模板
      */
-    private static final String GENERATE_SEQUENCE_ID_SQL = "select SEQ_audit_log.Nextval from dual";
+    private static final String AUDIT_LOG_DTL_INSERT_SQL = "insert into %s " +
+            "(TC_AUDIT_LOGD_ID,TC_AUDIT_LOG_ID,TC_COLUMN_NAME, TC_COLUMN_DESCRIPTION,TC_NEW_VALUE, TC_OLD_VALUE) " +
+            "values(?,?,?,?,?,?)";
     /**
      * 获取表名称注释SQL
      */
@@ -137,15 +136,15 @@ abstract class AbstractSQLAuditHandler extends AbstractSQLHandler {
     protected SQLStatement parseSQLStatement(SQLStatementParser statementParser) {
         return statementParser.parseInsert();
     }
-
     /**
-     * 保存审计日志列表
+     * 保存来自Map的审计日志
      *
-     * @param auditLogList 审计日志列表
+     * @param auditLogList 审计日志表
      */
-    void saveAuditLog(List<List<AuditLog>> auditLogList) {
+    void saveAuditLog(List<AuditLog> auditLogList) {
+
         // 如果没有需要保存的日志，则直接返回
-        if (auditLogList == null || auditLogList.isEmpty()) {
+        if (CollectionUtils.isEmpty(auditLogList) ) {
             return;
         }
 
@@ -159,14 +158,64 @@ abstract class AbstractSQLAuditHandler extends AbstractSQLHandler {
             }
 
             // 遍历并保存所有审计日志
-            for (List<AuditLog> auditLogs : auditLogList) {
-                if (auditLogs != null && !auditLogs.isEmpty()) {
-                    // 保存第一条日志并获取父ID
-                    Object parentID = saveAuditLog(auditLogs.get(0), null);
+            for (AuditLog auditLog : auditLogList) {
+                if (Objects.nonNull(auditLog)) {
+                    saveAuditLog(auditLog);
+                    List<AuditLogDtl> auditLogDtlList = auditLog.getAuditLogDtlList();
+                    if (CollectionUtils.isNotEmpty(auditLogDtlList)) {
+                        for (AuditLogDtl auditLogDtl : auditLogDtlList) {
+                            if (Objects.nonNull(auditLogDtl)) {
+                                saveAuditLogDtl(auditLogDtl);
+                            }
+                        }
+                    }
+                }
+            }
 
-                    // 保存剩余的日志记录，使用相同的父ID
-                    for (int i = 1; i < auditLogs.size(); i++) {
-                        saveAuditLog(auditLogs.get(i), parentID);
+
+            // 如果原来是自动提交模式，则提交事务并恢复自动提交设置
+            if (originalAutoCommit) {
+                getConnection().commit();
+            }
+        } catch (SQLException e) {
+            handleSQLException(e, originalAutoCommit);
+        } finally {
+            // 恢复原始的自动提交设置
+            restoreAutoCommit(originalAutoCommit);
+        }
+    }
+    /**
+     * 保存来自Map的审计日志
+     *
+     * @param auditDicLogList 审计日志表
+     * @param auditLogDtlList 审计日志明细表
+     */
+    void saveAuditLog(List<AuditLog> auditDicLogList, List<AuditLogDtl> auditLogDtlList) {
+
+        // 如果没有需要保存的日志，则直接返回
+        if (CollectionUtils.isEmpty(auditDicLogList) && CollectionUtils.isEmpty(auditLogDtlList)) {
+            return;
+        }
+
+        boolean originalAutoCommit = true;
+        try {
+            // 获取并保存当前自动提交设置
+            originalAutoCommit = getConnection().getAutoCommit();
+            if (originalAutoCommit) {
+                // 设置为手动提交以保证事务一致性
+                getConnection().setAutoCommit(false);
+            }
+
+            // 遍历并保存所有审计日志
+            for (AuditLog auditLog : auditDicLogList) {
+                if (Objects.nonNull(auditLog)) {
+                    saveAuditLog(auditLog);
+                }
+            }
+            if (CollectionUtils.isNotEmpty(auditLogDtlList)) {
+                for (AuditLogDtl auditLogDtl : auditLogDtlList) {
+                    if (Objects.nonNull(auditLogDtl)) {
+                        saveAuditLogDtl(auditLogDtl);
                     }
                 }
             }
@@ -183,75 +232,67 @@ abstract class AbstractSQLAuditHandler extends AbstractSQLHandler {
         }
     }
 
-    /**
-     * 保存来自Map的审计日志
-     *
-     * @param auditLogListMap 审计日志映射表
-     */
-    void saveAuditLog(Map<String, List<List<AuditLog>>> auditLogListMap) {
-        // 将Map中的所有审计日志合并到一个列表中
-        if (auditLogListMap == null || auditLogListMap.isEmpty()) {
-            return;
-        }
-
-        List<List<AuditLog>> auditLogList = new ArrayList<>();
-        for (List<List<AuditLog>> lists : auditLogListMap.values()) {
-            if (lists != null) {
-                auditLogList.addAll(lists);
-            }
-        }
-        saveAuditLog(auditLogList);
-    }
 
     /**
      * 保存单条审计日志
      *
      * @param auditLog 审计日志对象
-     * @param parentID 父日志ID
      * @return 生成的日志ID
      */
-    private Object saveAuditLog(AuditLog auditLog, Object parentID) {
-        Object resultId = genAuditLogSeqID();
-        if (resultId == null) {
-            return null;
-        }
-
+    private Object saveAuditLog(AuditLog auditLog) {
         String tableName = dbMetaDataHolder.getAuditLogTableCreator().getCurrentValidTableName();
 
         // 使用 try-with-resources 简化资源管理
-        try (PreparedStatement preparedStatement = getConnection().prepareStatement(String.format(AUDIT_LOG_INSERT_SQL, tableName))) {
+        try (PreparedStatement preparedStatement = getConnection().prepareStatement(String.format(AUDIT_LOG_INSERT_SQL, "TB_AUDIT_DIC_LOG"))) {
             int i = 1;
-            preparedStatement.setObject(i++, resultId);
-            preparedStatement.setObject(i++, auditLog.getTableName());
-            preparedStatement.setObject(i++, auditLog.getTableComments());
-            preparedStatement.setObject(i++, auditLog.getColumnName());
-            preparedStatement.setObject(i++, auditLog.getColComments());
-            preparedStatement.setObject(i++, auditLog.getPrimaryKey());
-            preparedStatement.setObject(i++, parentID);
+            preparedStatement.setString(i++, auditLog.getAuditLogId());
+            preparedStatement.setString(i++, auditLog.getTableName());
+            preparedStatement.setString(i++, auditLog.getTableDescription());
+            preparedStatement.setString(i++, auditLog.getPrimaryKeyValue());
+            preparedStatement.setString(i++, auditLog.getOperationType());
+            // 设置操作员信息
+            preparedStatement.setString(i++, MDC.get("userId"));
+            preparedStatement.setString(i++, MDC.get("userName"));
+            preparedStatement.setDate(i++, new java.sql.Date(auditLog.getCreateTime().getTime()));
 
-            // 处理时间戳类型的值
-            preparedStatement.setObject(i++, formatValue(auditLog.getNewValue()));
-            preparedStatement.setObject(i++, formatValue(auditLog.getOldValue()));
-            preparedStatement.setObject(i++, auditLog.getOperation());
-
-            // 设置操作员ID
-            preparedStatement.setObject(i++, MDC.get("userId"));
-            preparedStatement.setObject(i++, MDC.get("userName"));
-            //批次id
-            preparedStatement.setObject(i++, MDC.get("traceId"));
-
-            preparedStatement.setObject(i++, MDC.get("clientIp"));
+            preparedStatement.setString(i++, MDC.get("clientIp"));
             //token
-            preparedStatement.setObject(i++, MDC.get("token"));
-
-
+            preparedStatement.setString(i++, MDC.get("token"));
+            //批次id
+            preparedStatement.setString(i++, MDC.get("traceId"));
             // 执行插入操作
             preparedStatement.executeUpdate();
         } catch (SQLException e) {
             handleSQLException(e);
         }
 
-        return resultId;
+        return auditLog.getAuditLogId();
+    }
+    /**
+     * 保存单条审计日志
+     *
+     * @param auditLogDtl 审计日志对象
+     * @return 生成的日志ID
+     */
+    private Object saveAuditLogDtl(AuditLogDtl  auditLogDtl) {
+        String tableName = dbMetaDataHolder.getAuditLogTableCreator().getCurrentValidTableName();
+
+        // 使用 try-with-resources 简化资源管理
+        try (PreparedStatement preparedStatement = getConnection().prepareStatement(String.format(AUDIT_LOG_DTL_INSERT_SQL, "TB_AUDIT_DIC_LOG_DTL"))) {
+            int i = 1;
+            preparedStatement.setString(i++, auditLogDtl.getAuditLogdId());
+            preparedStatement.setString(i++, auditLogDtl.getAuditLogId());
+            preparedStatement.setString(i++, auditLogDtl.getColumnName());
+            preparedStatement.setString(i++, auditLogDtl.getColumnDescription());
+            preparedStatement.setObject(i++, formatValue(auditLogDtl.getNewValue()));
+            preparedStatement.setObject(i++, formatValue(auditLogDtl.getOldValue()));
+            // 执行插入操作
+            preparedStatement.executeUpdate();
+        } catch (SQLException e) {
+            handleSQLException(e);
+        }
+
+        return auditLogDtl.getAuditLogdId();
     }
 
     /**
@@ -274,17 +315,7 @@ abstract class AbstractSQLAuditHandler extends AbstractSQLHandler {
      * @return 生成的序列ID
      */
     private Object genAuditLogSeqID() {
-        try (Statement statement = getConnection().createStatement();
-             ResultSet resultSet = statement.executeQuery(GENERATE_SEQUENCE_ID_SQL)) {
-
-            if (resultSet.next()) {
-                return resultSet.getObject(1);
-            }
-        } catch (SQLException e) {
-            handleSQLException(e);
-        }
-
-        return null;
+        return UniqueIdGenerator.generateUniqueId();
     }
 
     /**

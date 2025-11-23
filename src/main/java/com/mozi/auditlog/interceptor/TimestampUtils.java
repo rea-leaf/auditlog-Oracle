@@ -1,4 +1,4 @@
-package com.htffund.auditlog.interceptor;
+package com.mozi.auditlog.interceptor;
 
 /**
  * @author chenhf

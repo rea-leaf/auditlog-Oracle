@@ -1,4 +1,4 @@
-package com.htffund.auditlog.interceptor.handler;
+package com.mozi.auditlog.interceptor.handler;
 
 public interface ISQLHandler
 {

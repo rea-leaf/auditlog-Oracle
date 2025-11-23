@@ -1,11 +1,11 @@
-package com.htffund.auditlog;
+package com.mozi.auditlog;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.htffund.auditlog.interceptor.CamelCaseUtils;
+import com.mozi.auditlog.interceptor.CamelCaseUtils;
 import org.apache.commons.lang.StringUtils;
 
 public class MapUtil {

@@ -1,9 +1,7 @@
-package com.htffund.auditlog.interceptor.handler;
+package com.mozi.auditlog.interceptor.handler;
 
 import com.alibaba.druid.sql.SQLUtils;
 import com.alibaba.druid.sql.ast.SQLExpr;
-import com.alibaba.druid.sql.ast.SQLLimit;
-import com.alibaba.druid.sql.ast.SQLOrderBy;
 import com.alibaba.druid.sql.ast.SQLStatement;
 import com.alibaba.druid.sql.ast.expr.SQLIdentifierExpr;
 import com.alibaba.druid.sql.ast.expr.SQLPropertyExpr;
@@ -14,22 +12,23 @@ import com.alibaba.druid.sql.ast.statement.SQLTableSource;
 import com.alibaba.druid.sql.dialect.oracle.ast.stmt.OracleDeleteStatement;
 import com.alibaba.druid.sql.dialect.oracle.ast.stmt.OracleSelectQueryBlock;
 import com.alibaba.druid.sql.parser.SQLStatementParser;
-import com.htffund.auditlog.domain.AuditLog;
-
+import com.mozi.auditlog.domain.AuditLog;
+import com.mozi.auditlog.domain.AuditLogDtl;
 import org.apache.commons.collections.map.CaseInsensitiveMap;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 public class OracleDeleteSqlAuditHandler extends AbstractSQLAuditHandler
 {
@@ -37,7 +36,7 @@ public class OracleDeleteSqlAuditHandler extends AbstractSQLAuditHandler
 
     private String querySql;
 
-    private Map<String, List<List<AuditLog>>> auditLogsBeforeDelete;
+    private List<AuditLog> auditLogsBeforeDelete;
 
     private Boolean preHandled = Boolean.FALSE;
 
@@ -114,7 +113,7 @@ public class OracleDeleteSqlAuditHandler extends AbstractSQLAuditHandler
             //selectQueryBlock.setOrderBy(orderBy);
             //selectQueryBlock.setLimit(limit);
             querySql = trimSQLWhitespaces(SQLUtils.toOracleString(selectQueryBlock));
-            auditLogsBeforeDelete = getCurrentDataForTables();
+            auditLogsBeforeDelete=getCurrentDataForTables();
             preHandled = Boolean.TRUE;
         }
     }
@@ -130,10 +129,11 @@ public class OracleDeleteSqlAuditHandler extends AbstractSQLAuditHandler
 
 
     @SuppressWarnings("unchecked")
-    private Map<String, List<List<AuditLog>>> getCurrentDataForTables()
+    private  List<AuditLog> getCurrentDataForTables()
     {
         Map<String, List<List<AuditLog>>> resultListMap = new CaseInsensitiveMap();
         PreparedStatement statement = null;
+        Date now = new Date();
         try
         {
             statement = getConnection().prepareStatement(querySql);
@@ -143,11 +143,14 @@ public class OracleDeleteSqlAuditHandler extends AbstractSQLAuditHandler
             while (resultSet.next())
             {
                 Map<String, Object> primaryKeyMap = new CaseInsensitiveMap();
+                AuditLog auditLog=null;
                 for (int i = 1; i < columnCount + 1; i++)
                 {
                     //String tableName = resultSet.getMetaData().getTableName(i);
                 	String currentTableName=resultSet.getMetaData().getTableName(i);
                     String tableName = (StringUtils.isBlank(currentTableName))?getTables().get(0):currentTableName;
+                    String tableUpper = tableName.toUpperCase();
+
                     if (StringUtils.isNotBlank(tableName))
                     {
                         List<List<AuditLog>> list = resultListMap.get(tableName);
@@ -155,26 +158,26 @@ public class OracleDeleteSqlAuditHandler extends AbstractSQLAuditHandler
                             list = new ArrayList<>();
                         if (list.size() <= row)
                         {
-                            list.add(new ArrayList());
                             primaryKeyMap.put(tableName, resultSet.getObject(i));
+                            auditLog = new AuditLog(AuditLog.OperationEnum.delete.name(),tableUpper, null, (String) primaryKeyMap.get(tableName), now);
+                            Map<String, String> tableCommentsByTableName = getTableCommentsByTableName(tableUpper);
+                            if (tableCommentsByTableName != null) {
+                                auditLog.setTableDescription(tableCommentsByTableName.get(tableUpper));
+                            }
+                            List<AuditLog> auditDicLogList = new ArrayList<>();
+                            auditDicLogList.add(auditLog);
+                            list.add(auditDicLogList);
                         } else
                         {
                         	if(null==resultSet.getObject(i)){
                    			    continue;
                    		    }
-                            List<AuditLog> cols = list.get(row);
-                            String tableUpper = tableName.toUpperCase();
-                            AuditLog auditLog = new AuditLog(tableUpper, getDbMetaDataHolder().getTableColumns().get(tableName).get(i - 2), null,
-                                    primaryKeyMap.get(tableName), AuditLog.OperationEnum.delete.name(), resultSet.getObject(i), null);
-                            Map<String, String> tableCommentsByTableName = getTableCommentsByTableName(tableUpper);
-                            if (tableCommentsByTableName != null) {
-                                auditLog.setTableComments(tableCommentsByTableName.get(tableUpper));
-                            }
+                            AuditLogDtl auditLogDtl = new AuditLogDtl(auditLog.getAuditLogId(), getDbMetaDataHolder().getTableColumns().get(tableName).get(i - 2), null, null, resultSet.getObject(i));
                             Map<String, String> colComments = getColCommentsByTableNameWithCache(tableUpper);
                             if (colComments != null) {
-                                auditLog.setColComments(colComments.get(auditLog.getColumnName()));
+                                auditLogDtl.setColumnDescription(colComments.get(auditLogDtl.getColumnName()));
                             }
-                            cols.add(auditLog);
+                            auditLog.getAuditLogDtlList().add(auditLogDtl);
                         }
                         resultListMap.put(tableName, list);
                     }
@@ -198,7 +201,14 @@ public class OracleDeleteSqlAuditHandler extends AbstractSQLAuditHandler
                 }
             }
         }
-        return resultListMap;
+        if(resultListMap==null||resultListMap.size()==0){
+            return null;
+    }
+        List<AuditLog> allAuditLogs = resultListMap.values().stream()
+                .flatMap(List::stream)      // Stream<List<AuditLogVo>>
+                .flatMap(List::stream)      // Stream<AuditLogVo>
+                .collect(Collectors.toList());
+        return allAuditLogs;
     }
 
 }

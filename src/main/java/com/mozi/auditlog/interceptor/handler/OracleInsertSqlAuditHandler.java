@@ -1,10 +1,12 @@
-package com.htffund.auditlog.interceptor.handler;
+package com.mozi.auditlog.interceptor.handler;
 
+import com.mozi.auditlog.domain.AuditLogDtl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -15,8 +17,8 @@ import com.alibaba.druid.sql.ast.SQLStatement;
 import com.alibaba.druid.sql.ast.statement.SQLTableSource;
 import com.alibaba.druid.sql.dialect.oracle.ast.stmt.OracleInsertStatement;
 import com.alibaba.druid.util.StringUtils;
-import com.htffund.auditlog.MapUtil;
-import com.htffund.auditlog.domain.AuditLog;
+import com.mozi.auditlog.MapUtil;
+import com.mozi.auditlog.domain.AuditLog;
 
 
 public class OracleInsertSqlAuditHandler extends AbstractSQLAuditHandler {
@@ -98,7 +100,7 @@ public class OracleInsertSqlAuditHandler extends AbstractSQLAuditHandler {
             return;
         }
         if (preHandled) {
-            List<List<AuditLog>> auditLogs = new ArrayList<>();
+           List<AuditLog> auditLogs = new ArrayList<>();
             try {
                 //要求每个表都要有主键
                 String primaryKey = getDbMetaDataHolder().getPrimaryKeys().get(table);
@@ -142,30 +144,34 @@ public class OracleInsertSqlAuditHandler extends AbstractSQLAuditHandler {
      * @param auditLogs  the list to store generated audit logs
      * @throws Exception if there is an error processing the parameter
      */
-    private void processInsertParameter(Object args, String primaryKey, List<List<AuditLog>> auditLogs) throws Exception {
+    private void processInsertParameter(Object args, String primaryKey, List<AuditLog> auditLogs) throws Exception {
         Map<String, Object> currentValueMap = MapUtil.convertDbColumnList(args, columnList, primaryKey);
         Object primaryValue = currentValueMap.get(primaryKey);
         List<AuditLog> list = new ArrayList<>();
         String tableName = table.toUpperCase();
-        
+        List<AuditLogDtl> auditLogDtlList = new ArrayList<>();
+        Date now = new Date();
         // Cache comments outside the loop for better performance
         Map<String, String> tableCommentsByTableName = getTableCommentsByTableName(tableName);
         Map<String, String> colComments = getColCommentsByTableNameWithCache(tableName);
-        
+        String tableDescription="";
+        if (tableCommentsByTableName != null) {
+            tableDescription=tableCommentsByTableName.get(tableName);
+        }
+        AuditLog auditDicLog = new AuditLog(AuditLog.OperationEnum.insert.name(), tableName.toUpperCase(), tableDescription, (String) primaryValue,now);
         for (String column : columnList) {
             Object columnValue = currentValueMap.get(column);
             if (null == columnValue) {
                 continue;
             }
-            AuditLog auditLog = new AuditLog(tableName, column, null, primaryValue, AuditLog.OperationEnum.insert.name(), null, columnValue);
-            if (tableCommentsByTableName != null) {
-                auditLog.setTableComments(tableCommentsByTableName.get(tableName));
-            }
+            String columnDescription ="";
             if (colComments != null) {
-                auditLog.setColComments(colComments.get(auditLog.getColumnName()));
+                columnDescription=colComments.get(column);
             }
-            list.add(auditLog);
+            AuditLogDtl auditLogDtl = new AuditLogDtl(auditDicLog.getAuditLogId(), column, columnDescription, null, columnValue);
+            auditLogDtlList.add(auditLogDtl);
         }
-        auditLogs.add(list);
+        auditDicLog.setAuditLogDtlList(auditLogDtlList);
+        auditLogs.add(auditDicLog);
     }
 }

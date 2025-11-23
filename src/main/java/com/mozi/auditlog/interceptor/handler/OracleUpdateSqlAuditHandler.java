@@ -1,16 +1,14 @@
-package com.htffund.auditlog.interceptor.handler;
+package com.mozi.auditlog.interceptor.handler;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import com.mozi.auditlog.domain.AuditLog;
+import com.mozi.auditlog.domain.AuditLogDtl;
 import org.apache.commons.collections.map.CaseInsensitiveMap;
 import org.apache.commons.lang.StringUtils;
 
@@ -26,7 +24,6 @@ import com.alibaba.druid.sql.ast.statement.SQLUpdateSetItem;
 import com.alibaba.druid.sql.dialect.oracle.ast.stmt.OracleSelectQueryBlock;
 import com.alibaba.druid.sql.dialect.oracle.ast.stmt.OracleUpdateStatement;
 import com.alibaba.druid.sql.parser.SQLStatementParser;
-import com.htffund.auditlog.domain.AuditLog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,14 +44,14 @@ public class OracleUpdateSqlAuditHandler extends AbstractSQLAuditHandler {
     /**
      * Constructor for OracleUpdateSqlAuditHandler.
      *
-     * @param connection             the database connection
-     * @param dbMetaDataHolder       the database metadata holder
-     * @param updateSQL              the UPDATE SQL statement
-     * @param monitorTableRegex      the regex pattern for monitoring tables
-     * @param tableColumnPreFix      the prefix for table columns
-     * @param nonMonitorTableRegex   the regex pattern for non-monitoring tables
-     * @param monitorTables          the list of tables to monitor
-     * @param nonMonitorTables       the list of tables not to monitor
+     * @param connection           the database connection
+     * @param dbMetaDataHolder     the database metadata holder
+     * @param updateSQL            the UPDATE SQL statement
+     * @param monitorTableRegex    the regex pattern for monitoring tables
+     * @param tableColumnPreFix    the prefix for table columns
+     * @param nonMonitorTableRegex the regex pattern for non-monitoring tables
+     * @param monitorTables        the list of tables to monitor
+     * @param nonMonitorTables     the list of tables not to monitor
      */
     public OracleUpdateSqlAuditHandler(Connection connection, DBMetaDataHolder dbMetaDataHolder, String updateSQL, String monitorTableRegex, String tableColumnPreFix, String nonMonitorTableRegex, CopyOnWriteArrayList<String> monitorTables, CopyOnWriteArrayList<String> nonMonitorTables) {
         super(connection, dbMetaDataHolder, updateSQL, monitorTableRegex, tableColumnPreFix, nonMonitorTableRegex, monitorTables, nonMonitorTables);
@@ -97,7 +94,7 @@ public class OracleUpdateSqlAuditHandler extends AbstractSQLAuditHandler {
             SQLTableSource tableSource = updateStatement.getTableSource();
             List<SQLUpdateSetItem> updateSetItems = updateStatement.getItems();
             SQLExpr where = updateStatement.getWhere();
-            
+
             // Extract table and column information from update set items
             for (SQLUpdateSetItem sqlUpdateSetItem : updateSetItems) {
                 String[] aliasAndColumn = separateAliasAndColumn(SQLUtils.toOracleString(sqlUpdateSetItem.getColumn()));
@@ -146,42 +143,47 @@ public class OracleUpdateSqlAuditHandler extends AbstractSQLAuditHandler {
     @Override
     public void postHandle(Object args) {
         if (preHandled) {
-            Map<String, List<List<AuditLog>>> auditLogListMap = new CaseInsensitiveMap();
+            List<AuditLog> auditDicLogList = new ArrayList<>();
+            List<AuditLogDtl> auditLogDtlList = new ArrayList<>();
             if (rowsBeforeUpdateListMap != null) {
+                Date now = new Date();
                 Map<String, Map<Object, Object[]>> rowsAfterUpdateListMap = getTablesDataAfterUpdate();
                 for (String tableName : rowsBeforeUpdateListMap.keySet()) {
                     Map<Object, Object[]> rowsBeforeUpdateRowsMap = rowsBeforeUpdateListMap.get(tableName);
                     Map<Object, Object[]> rowsAfterUpdateRowsMap = rowsAfterUpdateListMap.get(tableName);
                     if (rowsBeforeUpdateRowsMap != null && rowsAfterUpdateRowsMap != null) {
-                        List<List<AuditLog>> rowList = auditLogListMap.computeIfAbsent(tableName, k -> new ArrayList<>());
                         for (Object pKey : rowsBeforeUpdateRowsMap.keySet()) {
                             Object[] rowBeforeUpdate = rowsBeforeUpdateRowsMap.get(pKey);
                             Object[] rowAfterUpdate = rowsAfterUpdateRowsMap.get(pKey);
+                            String tableUpper = tableName.toUpperCase();
+                            Map<String, String> tableCommentsByTableName = getTableCommentsByTableName(tableUpper);
+                            String tableDescription = "";
+                            if (tableCommentsByTableName != null) {
+                                tableDescription = tableCommentsByTableName.get(tableUpper);
+                            }
+                            AuditLog auditDicLog = new AuditLog(AuditLog.OperationEnum.update.name(), tableName.toUpperCase(), tableDescription, (String) pKey,now);
+                            auditDicLogList.add(auditDicLog);
                             List<AuditLog> colList = new ArrayList<>();
                             for (int col = 0; col < rowBeforeUpdate.length; col++) {
-                                if (rowBeforeUpdate[col] != null
-                                        || (rowBeforeUpdate[col] == null && rowAfterUpdate[col] != null)) {
-                                    String tableUpper = tableName.toUpperCase();
-                                    AuditLog auditLog = new AuditLog(tableUpper, updateColumnListMap.get(tableName).get(col), null,
-                                            pKey, AuditLog.OperationEnum.update.name(), rowBeforeUpdate[col], rowAfterUpdate[col]);
-                                    Map<String, String> tableCommentsByTableName = getTableCommentsByTableName(tableUpper);
-                                    if (tableCommentsByTableName != null) {
-                                        auditLog.setTableComments(tableCommentsByTableName.get(tableUpper));
-                                    }
+                                if (rowBeforeUpdate[col] != null && !rowBeforeUpdate[col].equals(rowAfterUpdate[col]) || rowBeforeUpdate[col] == null && rowAfterUpdate[col] != null) {
+                             /*       AuditLog auditLog = new AuditLog(tableUpper, updateColumnListMap.get(tableName).get(col), null,
+                                            pKey, AuditLog.OperationEnum.update.name(), rowBeforeUpdate[col], rowAfterUpdate[col]);*/
+
                                     Map<String, String> colComments = getColCommentsByTableNameWithCache(tableUpper);
+                                    String columnDescription = "";
+                                    String columnName = updateColumnListMap.get(tableName).get(col);
                                     if (colComments != null) {
-                                        auditLog.setColComments(colComments.get(auditLog.getColumnName()));
+                                        columnDescription = colComments.get(columnName);
                                     }
-                                    colList.add(auditLog);
+                                    AuditLogDtl auditLogDtl = new AuditLogDtl(auditDicLog.getAuditLogId(), columnName, columnDescription, rowBeforeUpdate[col], rowAfterUpdate[col]);
+                                    auditLogDtlList.add(auditLogDtl);
                                 }
                             }
-                            if (!colList.isEmpty())
-                                rowList.add(colList);
                         }
                     }
                 }
             }
-            saveAuditLog(auditLogListMap);
+            saveAuditLog(auditDicLogList, auditLogDtlList);
         }
     }
 

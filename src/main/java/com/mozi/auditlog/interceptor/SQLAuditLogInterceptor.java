@@ -1,6 +1,5 @@
-package com.htffund.auditlog.interceptor;
+package com.mozi.auditlog.interceptor;
 
-import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.text.DateFormat;
 import java.util.Date;
@@ -28,13 +27,13 @@ import org.apache.ibatis.reflection.MetaObject;
 import org.apache.ibatis.session.Configuration;
 import org.apache.ibatis.type.TypeHandlerRegistry;
 
-import com.htffund.auditlog.domain.AuditLog;
-import com.htffund.auditlog.interceptor.handler.AuditLogTableCreator;
-import com.htffund.auditlog.interceptor.handler.DBMetaDataHolder;
-import com.htffund.auditlog.interceptor.handler.ISQLHandler;
-import com.htffund.auditlog.interceptor.handler.OracleDeleteSqlAuditHandler;
-import com.htffund.auditlog.interceptor.handler.OracleInsertSqlAuditHandler;
-import com.htffund.auditlog.interceptor.handler.OracleUpdateSqlAuditHandler;
+import com.mozi.auditlog.domain.AuditLog;
+import com.mozi.auditlog.interceptor.handler.AuditLogTableCreator;
+import com.mozi.auditlog.interceptor.handler.DBMetaDataHolder;
+import com.mozi.auditlog.interceptor.handler.ISQLHandler;
+import com.mozi.auditlog.interceptor.handler.OracleDeleteSqlAuditHandler;
+import com.mozi.auditlog.interceptor.handler.OracleInsertSqlAuditHandler;
+import com.mozi.auditlog.interceptor.handler.OracleUpdateSqlAuditHandler;
 
 @Intercepts(
         {
